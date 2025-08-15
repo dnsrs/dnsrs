@@ -8,9 +8,18 @@ pub mod types;
 pub mod hash;
 pub mod metrics;
 pub mod atomic;
+pub mod query;
+pub mod resolver;
+pub mod router;
+
+#[cfg(test)]
+mod tests;
 
 pub use error::{DnsError, DnsResult};
 pub use types::*;
 pub use hash::*;
 pub use metrics::*;
 pub use atomic::*;
+pub use query::*;
+pub use resolver::*;
+pub use router::*;

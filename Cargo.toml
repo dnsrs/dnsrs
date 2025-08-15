@@ -21,6 +21,7 @@ rust-version = "1.75"
 # Async runtime
 tokio = { version = "1.47", features = ["full"] }
 tokio-util = "0.7"
+futures = "0.3"
 
 # Serialization and zero-copy
 flatbuffers = "25.2"
