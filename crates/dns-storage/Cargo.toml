@@ -40,3 +40,11 @@ dns-protocol = { path = "../dns-protocol" }
 [[example]]
 name = "zero_copy_demo"
 path = "../../examples/zero_copy_demo.rs"
+
+[[example]]
+name = "performance_comparison"
+path = "../../examples/performance_comparison.rs"
+
+[[example]]
+name = "optimized_zero_copy"
+path = "../../examples/optimized_zero_copy.rs"

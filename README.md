@@ -92,14 +92,9 @@ Rust 1.75 or later
 
 FlatBuffers compiler (flatc)
 
-Installation
-code
-Bash
-download
-content_copy
-expand_less
-IGNORE_WHEN_COPYING_START
-IGNORE_WHEN_COPYING_END
+# Perfomance test
+cargo run --example optimized_zero_copy -p dns-storage --release
+
 # Install dependencies
 make install-deps
 
