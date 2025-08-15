@@ -266,11 +266,20 @@ pub enum RecordData {
         signer_name: String,
         signature: Bytes,
     },
+    // Additional DNSSEC records
+    NSEC3PARAM { hash_algorithm: u8, flags: u8, iterations: u16, salt: Bytes },
+    CDS { key_tag: u16, algorithm: u8, digest_type: u8, digest: Bytes },
+    CDNSKEY { flags: u16, protocol: u8, algorithm: u8, public_key: Bytes },
     // Modern records
     CAA { flags: u8, tag: String, value: Bytes },
     TLSA { cert_usage: u8, selector: u8, matching_type: u8, cert_data: Bytes },
     HTTPS { priority: u16, target: String, params: Vec<(u16, Bytes)> },
     SVCB { priority: u16, target: String, params: Vec<(u16, Bytes)> },
+    SMIMEA { cert_usage: u8, selector: u8, matching_type: u8, cert_data: Bytes },
+    NAPTR { order: u16, preference: u16, flags: String, services: String, regexp: String, replacement: String },
+    OPENPGPKEY { key_data: Bytes },
+    CSYNC { serial: u32, flags: u16, type_bit_maps: Bytes },
+    ZONEMD { serial: u32, scheme: u8, hash_algorithm: u8, digest: Bytes },
     // Raw data for unknown types
     Unknown { data: Bytes },
 }

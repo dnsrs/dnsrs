@@ -4,5 +4,16 @@
 //! FlatBuffers for zero-copy serialization and parsing.
 
 pub mod packet;
+pub mod parser;
+pub mod response;
+pub mod records;
+pub mod validation;
 
-pub use packet::*;
+#[cfg(test)]
+mod tests;
+
+pub use packet::{ZeroCopyDnsParser, DnsRecordData, RecordDataType};
+pub use parser::DnsPacketParser;
+pub use response::{DnsResponseBuilder, PrebuiltResponse};
+pub use records::{ParsedDnsRecord, ParsedRecordData, DnsHeader, ParsedDnsPacket};
+pub use validation::DnsPacketValidator;
