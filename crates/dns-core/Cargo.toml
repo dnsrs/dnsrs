@@ -1,0 +1,28 @@
+[package]
+name = "dns-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Core DNS types, error handling, and utilities"
+
+[dependencies]
+thiserror.workspace = true
+bytes.workspace = true
+ahash.workspace = true
+tracing.workspace = true
+
+[dependencies.serde]
+workspace = true
+optional = true
+
+[features]
+default = []
+simd = ["wide"]
+serde = ["dep:serde"]
+
+[dependencies.wide]
+workspace = true
+optional = true

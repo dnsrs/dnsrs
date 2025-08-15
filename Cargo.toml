@@ -1,0 +1,80 @@
+[workspace]
+members = [
+    "crates/dns-core",
+    "crates/dns-protocol",
+    "crates/dns-storage",
+    "crates/dns-cluster",
+    "crates/dns-api",
+    "crates/dns-server",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Planet Scale DNS Team"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/planetscale/dns-server"
+rust-version = "1.75"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.47", features = ["full"] }
+tokio-util = "0.7"
+
+# Serialization and zero-copy
+flatbuffers = "25.2"
+bytes = "1.10"
+
+# Lock-free data structures
+lockfree = "0.5"
+crossbeam = "0.8"
+
+# Networking
+hyper = { version = "1.6", features = ["full"] }
+rustls = "0.23"
+quinn = "0.11"
+
+# Performance and SIMD
+rayon = "1.11"
+wide = "0.7"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging and metrics
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+prometheus = "0.14"
+
+# Hashing and crypto
+ahash = "0.8"
+blake3 = "1.8"
+ring = "0.17"
+
+# Memory mapping
+memmap2 = "0.9"
+
+# Configuration
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9"
+
+# Testing
+criterion = "0.7"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+strip = false
+
+# Performance optimized profile for benchmarks
+[profile.bench]
+inherits = "release"
+debug = true

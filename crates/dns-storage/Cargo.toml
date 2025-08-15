@@ -1,0 +1,28 @@
+[package]
+name = "dns-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Zero-copy storage engine with FlatBuffers and memory mapping"
+
+[dependencies]
+dns-core = { path = "../dns-core" }
+tokio.workspace = true
+flatbuffers.workspace = true
+bytes.workspace = true
+lockfree.workspace = true
+memmap2.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+ahash.workspace = true
+
+[features]
+default = []
+compression = ["lz4"]
+
+[dependencies.lz4]
+version = "1.24"
+optional = true

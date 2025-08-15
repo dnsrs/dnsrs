@@ -1,0 +1,23 @@
+[package]
+name = "dns-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "REST API server for DNS management"
+
+[dependencies]
+dns-core = { path = "../dns-core" }
+dns-storage = { path = "../dns-storage" }
+tokio.workspace = true
+hyper.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+prometheus.workspace = true
+
+[features]
+default = []
+web-ui = []

@@ -220,7 +220,7 @@ pub struct AtomicQueryRouter {
 }
 
 impl AtomicQueryRouter {
-    pub fn route_query_atomic(&self, query: AtomicQuery) -> Result<Arc<[u8]>> {
+    pub async fn route_query_atomic(&self, query: AtomicQuery) -> Result<Arc<[u8]>> {
         // Atomic query processing pipeline
         
         // 1. Atomic rate limiting check
@@ -255,10 +255,11 @@ impl AtomicQueryRouter {
         Ok(self.generate_nxdomain_response_atomic(query.id))
     }
     
-    // Atomic batch query processing for maximum throughput
-    pub fn route_queries_batch_atomic(&self, queries: &[AtomicQuery]) -> Vec<Result<Arc<[u8]>>> {
-        // Process multiple queries atomically for better cache locality
-        queries.iter().map(|q| self.route_query_atomic(q.clone())).collect()
+    // Async batch query processing for maximum throughput
+    pub async fn route_queries_batch_atomic(&self, queries: &[AtomicQuery]) -> Vec<Result<Arc<[u8]>>> {
+        // Process multiple queries asynchronously with atomic operations
+        let futures = queries.iter().map(|q| self.route_query_atomic(q.clone()));
+        futures::future::join_all(futures).await
     }
 }
 
@@ -344,24 +345,24 @@ impl AtomicTokenBucket {
 
 #### Ultra-Fast Record Resolver
 ```rust
-pub trait RecordResolver {
-    // Zero-copy resolution using hash-based lookups
-    async fn resolve_fast(&self, name_hash: u64, record_type: u16) -> Result<Bytes>;
+pub trait AtomicRecordResolver {
+    // Async zero-copy resolution using atomic hash-based lookups
+    async fn resolve_fast_atomic(&self, name_hash: u64, record_type: u16) -> Result<Arc<[u8]>>;
     
-    // Batch resolution for multiple queries
-    async fn resolve_batch(&self, queries: &[(u64, u16)]) -> Result<Vec<Bytes>>;
+    // Async atomic batch resolution for multiple queries
+    async fn resolve_batch_atomic(&self, queries: &[(u64, u16)]) -> Result<Vec<Arc<[u8]>>>;
     
-    // Pre-built response cache lookup (fastest path)
-    async fn get_prebuilt_response(&self, query_hash: u64) -> Option<Bytes>;
+    // Async atomic pre-built response cache lookup (fastest path)
+    async fn get_prebuilt_response_atomic(&self, query_hash: u64) -> Option<Arc<[u8]>>;
     
-    // DNSSEC-aware resolution
-    async fn resolve_with_dnssec(&self, name_hash: u64, record_type: u16, dnssec_ok: bool) -> Result<Bytes>;
+    // Async atomic DNSSEC-aware resolution
+    async fn resolve_with_dnssec_atomic(&self, name_hash: u64, record_type: u16, dnssec_ok: bool) -> Result<Arc<[u8]>>;
     
-    // Wildcard and delegation handling
-    async fn resolve_with_wildcards(&self, name_hash: u64, record_type: u16) -> Result<Bytes>;
+    // Async atomic wildcard and delegation handling
+    async fn resolve_with_wildcards_atomic(&self, name_hash: u64, record_type: u16) -> Result<Arc<[u8]>>;
     
-    // Recursive resolution for external queries
-    async fn resolve_recursive(&self, name_hash: u64, record_type: u16, upstream: &[IpAddr]) -> Result<Bytes>;
+    // Async atomic recursive resolution for external queries
+    async fn resolve_recursive_atomic(&self, name_hash: u64, record_type: u16, upstream: &[IpAddr]) -> Result<Arc<[u8]>>;
 }
 
 // Lock-free high-performance resolver
@@ -501,28 +502,28 @@ pub struct StorageManager {
 }
 
 pub trait AtomicZeroCopyCache {
-    // Lock-free cache operations using atomic compare-and-swap
-    fn get_raw_atomic(&self, key: u64) -> Option<Arc<[u8]>>;
-    fn set_raw_atomic(&self, key: u64, data: Arc<[u8]>, expires_at: u64) -> bool;
+    // Async lock-free cache operations using atomic compare-and-swap
+    async fn get_raw_atomic(&self, key: u64) -> Option<Arc<[u8]>>;
+    async fn set_raw_atomic(&self, key: u64, data: Arc<[u8]>, expires_at: u64) -> bool;
     
-    // Atomic pre-built response operations
-    fn get_prebuilt_atomic(&self, query_hash: u64) -> Option<Arc<[u8]>>;
-    fn set_prebuilt_atomic(&self, query_hash: u64, response: Arc<[u8]>, expires_at: u64) -> bool;
+    // Async atomic pre-built response operations
+    async fn get_prebuilt_atomic(&self, query_hash: u64) -> Option<Arc<[u8]>>;
+    async fn set_prebuilt_atomic(&self, query_hash: u64, response: Arc<[u8]>, expires_at: u64) -> bool;
     
-    // Atomic batch operations for better performance
-    fn get_batch_atomic(&self, keys: &[u64]) -> Vec<Option<Arc<[u8]>>>;
-    fn set_batch_atomic(&self, entries: &[(u64, Arc<[u8]>, u64)]) -> Vec<bool>;
+    // Async atomic batch operations for better performance
+    async fn get_batch_atomic(&self, keys: &[u64]) -> Vec<Option<Arc<[u8]>>>;
+    async fn set_batch_atomic(&self, entries: &[(u64, Arc<[u8]>, u64)]) -> Vec<bool>;
     
-    // Lock-free invalidation using atomic flags
-    fn invalidate_atomic(&self, key: u64) -> bool;
-    fn invalidate_pattern_atomic(&self, pattern_hash: u64) -> usize;
+    // Async lock-free invalidation using atomic flags
+    async fn invalidate_atomic(&self, key: u64) -> bool;
+    async fn invalidate_pattern_atomic(&self, pattern_hash: u64) -> usize;
     
-    // Atomic statistics without locks
-    fn stats_atomic(&self) -> AtomicCacheStats;
+    // Async atomic statistics without locks
+    async fn stats_atomic(&self) -> AtomicCacheStats;
     
-    // Atomic cache maintenance
-    fn evict_expired_atomic(&self) -> usize;
-    fn compact_atomic(&self) -> bool;
+    // Async atomic cache maintenance
+    async fn evict_expired_atomic(&self) -> usize;
+    async fn compact_atomic(&self) -> bool;
 }
 
 pub struct AtomicCacheStats {
@@ -535,32 +536,32 @@ pub struct AtomicCacheStats {
 }
 
 pub trait AtomicZeroCopyDiskStorage {
-    // Atomic memory-mapped file access
-    fn mmap_zone_atomic(&self, zone_hash: u64) -> Result<Arc<AtomicPtr<MappedZone>>>;
+    // Async atomic memory-mapped file access
+    async fn mmap_zone_atomic(&self, zone_hash: u64) -> Result<Arc<AtomicPtr<MappedZone>>>;
     
-    // Atomic zone data operations using compare-and-swap
-    fn store_zone_atomic(&self, zone_hash: u64, data: &[u8], expected_version: u64) -> Result<u64>;
-    fn load_zone_atomic(&self, zone_hash: u64) -> Result<Arc<[u8]>>;
+    // Async atomic zone data operations using compare-and-swap
+    async fn store_zone_atomic(&self, zone_hash: u64, data: &[u8], expected_version: u64) -> Result<u64>;
+    async fn load_zone_atomic(&self, zone_hash: u64) -> Result<Arc<[u8]>>;
     
-    // Lock-free zone enumeration
-    fn list_zones_atomic(&self) -> Vec<u64>;
+    // Async lock-free zone enumeration
+    async fn list_zones_atomic(&self) -> Vec<u64>;
     
-    // Atomic backup operations
-    fn backup_incremental_atomic(&self, since_version: u64, target: &Path) -> Result<u64>;
-    fn restore_incremental_atomic(&self, backup_path: &Path) -> Result<u64>;
+    // Async atomic backup operations
+    async fn backup_incremental_atomic(&self, since_version: u64, target: &Path) -> Result<u64>;
+    async fn restore_incremental_atomic(&self, backup_path: &Path) -> Result<u64>;
     
-    // Atomic zone operations with optimistic concurrency
-    fn get_zone_version_atomic(&self, zone_hash: u64) -> Option<u64>;
-    fn compare_and_swap_zone(&self, zone_hash: u64, expected_version: u64, new_data: Arc<[u8]>) -> Result<u64>;
-    fn get_zone_delta_atomic(&self, zone_hash: u64, from_version: u64, to_version: u64) -> Result<Arc<ZoneDelta>>;
+    // Async atomic zone operations with optimistic concurrency
+    async fn get_zone_version_atomic(&self, zone_hash: u64) -> Option<u64>;
+    async fn compare_and_swap_zone(&self, zone_hash: u64, expected_version: u64, new_data: Arc<[u8]>) -> Result<u64>;
+    async fn get_zone_delta_atomic(&self, zone_hash: u64, from_version: u64, to_version: u64) -> Result<Arc<ZoneDelta>>;
     
-    // Atomic metadata operations
-    fn update_metadata_atomic(&self, zone_hash: u64, metadata: &AtomicZoneMetadata) -> bool;
-    fn get_metadata_atomic(&self, zone_hash: u64) -> Option<Arc<AtomicZoneMetadata>>;
+    // Async atomic metadata operations
+    async fn update_metadata_atomic(&self, zone_hash: u64, metadata: &AtomicZoneMetadata) -> bool;
+    async fn get_metadata_atomic(&self, zone_hash: u64) -> Option<Arc<AtomicZoneMetadata>>;
     
-    // Lock-free garbage collection
-    fn gc_old_versions_atomic(&self, keep_versions: u32) -> usize;
-    fn compact_storage_atomic(&self) -> Result<usize>;
+    // Async lock-free garbage collection
+    async fn gc_old_versions_atomic(&self, keep_versions: u32) -> usize;
+    async fn compact_storage_atomic(&self) -> Result<usize>;
 }
 
 // Lock-free zone storage using atomic operations
@@ -640,25 +641,250 @@ pub struct MappedBuffer {
 
 ### 4. Cluster Management
 
-#### Node Discovery and Health
+#### Unlimited Scale Clustering Architecture
+
 ```rust
-pub struct ClusterManager {
-    node_id: NodeId,
-    discovery: Arc<dyn NodeDiscovery>,
-    health_monitor: Arc<HealthMonitor>,
-    consensus: Arc<dyn ConsensusEngine>,
+// Hierarchical clustering for unlimited scale
+pub struct PlanetScaleClusterManager {
+    // Local node identity
+    node_id: u64,                                    // Hash-based node ID
+    cluster_id: u64,                                 // Cluster hash ID
+    
+    // Multi-tier discovery (no limits on cluster size)
+    local_discovery: Arc<LocalNodeDiscovery>,        // Same datacenter/region
+    regional_discovery: Arc<RegionalNodeDiscovery>,  // Cross-region discovery
+    global_discovery: Arc<GlobalNodeDiscovery>,      // Planet-wide discovery
+    
+    // Zero-copy zone distribution
+    zone_distributor: Arc<ZeroCopyZoneDistributor>,
+    
+    // Hash-based consistent routing (no consensus needed)
+    consistent_hash_ring: Arc<AtomicConsistentHashRing>,
+    
+    // Lock-free cluster state
+    cluster_state: Arc<AtomicClusterState>,
 }
 
-pub trait NodeDiscovery {
-    async fn register_node(&self, node: NodeInfo) -> Result<()>;
-    async fn discover_nodes(&self) -> Result<Vec<NodeInfo>>;
-    async fn leave_cluster(&self) -> Result<()>;
+// No limits on cluster size - uses consistent hashing
+pub struct AtomicConsistentHashRing {
+    // Lock-free hash ring with atomic updates
+    ring: Arc<lockfree::map::Map<u64, Arc<NodeInfo>>>,
+    
+    // Virtual nodes for better distribution (configurable, default 1000 per node)
+    virtual_nodes_per_node: AtomicU32,
+    
+    // Total nodes in ring (atomic counter)
+    total_nodes: AtomicUsize,
+    
+    // Ring version for atomic updates
+    ring_version: AtomicU64,
 }
 
-pub trait ConsensusEngine {
-    async fn propose_change(&self, change: ClusterChange) -> Result<()>;
-    async fn get_cluster_state(&self) -> Result<ClusterState>;
+impl AtomicConsistentHashRing {
+    // O(log N) lookup with no locks - unlimited nodes supported
+    pub async fn find_nodes_for_zone(&self, zone_hash: u64, replica_count: usize) -> Vec<u64> {
+        // Hash-based routing - no deserialization needed
+        // Uses atomic operations to traverse ring
+        let mut nodes = Vec::with_capacity(replica_count);
+        let mut current_hash = zone_hash;
+        
+        for _ in 0..replica_count {
+            // Find next node in ring using atomic operations
+            if let Some(node) = self.ring.get(&current_hash) {
+                nodes.push(node.node_id);
+                current_hash = self.next_hash_atomic(current_hash);
+            }
+        }
+        nodes
+    }
+    
+    // Atomic ring updates - no locks, supports unlimited nodes
+    pub async fn add_node_atomic(&self, node: NodeInfo) -> bool {
+        let virtual_nodes = self.virtual_nodes_per_node.load(Ordering::Acquire);
+        
+        // Add virtual nodes atomically
+        for i in 0..virtual_nodes {
+            let virtual_hash = self.calculate_virtual_node_hash(node.node_id, i);
+            self.ring.insert(virtual_hash, Arc::new(node.clone()));
+        }
+        
+        self.total_nodes.fetch_add(1, Ordering::AcqRel);
+        self.ring_version.fetch_add(1, Ordering::AcqRel);
+        true
+    }
 }
+
+// Zero-copy zone distribution across unlimited nodes
+pub struct ZeroCopyZoneDistributor {
+    // Direct FlatBuffer transfer without deserialization
+    zone_cache: Arc<lockfree::map::Map<u64, Arc<[u8]>>>,  // Zone hash -> FlatBuffer bytes
+    
+    // Atomic replication tracking
+    replication_status: Arc<lockfree::map::Map<u64, Arc<AtomicReplicationStatus>>>,
+    
+    // Network layer for zero-copy transfers
+    network: Arc<ZeroCopyNetworkLayer>,
+}
+
+impl ZeroCopyZoneDistributor {
+    // Transfer zone data without any deserialization
+    pub async fn replicate_zone_zero_copy(&self, zone_hash: u64, target_nodes: &[u64]) -> Result<()> {
+        // Get FlatBuffer bytes directly from cache
+        let zone_data = self.zone_cache.get(&zone_hash)
+            .ok_or(DnsServerError::ZoneNotFound)?;
+        
+        // Send raw FlatBuffer bytes to all target nodes simultaneously
+        let transfer_futures = target_nodes.iter().map(|&node_id| {
+            self.network.send_zone_data_atomic(node_id, zone_hash, zone_data.clone())
+        });
+        
+        // Parallel zero-copy transfers
+        let results = futures::future::join_all(transfer_futures).await;
+        
+        // Update replication status atomically
+        for (node_id, result) in target_nodes.iter().zip(results) {
+            if result.is_ok() {
+                self.update_replication_status_atomic(zone_hash, *node_id, true);
+            }
+        }
+        
+        Ok(())
+    }
+}
+
+// Zero-copy network layer
+pub struct ZeroCopyNetworkLayer {
+    // Connection pool per node
+    connections: Arc<lockfree::map::Map<u64, Arc<AtomicConnection>>>,
+    
+    // Compression for network transfer (still zero-copy)
+    compressor: Arc<ZeroCopyCompressor>,
+}
+
+impl ZeroCopyNetworkLayer {
+    // Send FlatBuffer bytes directly without serialization
+    pub async fn send_zone_data_atomic(&self, node_id: u64, zone_hash: u64, data: Arc<[u8]>) -> Result<()> {
+        let connection = self.get_connection_atomic(node_id).await?;
+        
+        // Optional compression (still zero-copy using memory mapping)
+        let compressed_data = self.compressor.compress_zero_copy(&data).await?;
+        
+        // Send header with zone hash and size
+        let header = ZoneTransferHeader {
+            zone_hash,
+            data_size: compressed_data.len() as u64,
+            compression: CompressionType::Lz4,
+            version: self.get_zone_version_atomic(zone_hash),
+        };
+        
+        // Send header + data in single atomic operation
+        connection.send_atomic(&header.to_bytes(), &compressed_data).await?;
+        
+        Ok(())
+    }
+}
+```
+
+#### Hash-Only Query Processing (Zero Deserialization)
+
+```rust
+// Query processing using only hash comparisons
+impl AtomicQueryRouter {
+    pub async fn route_query_hash_only(&self, query: AtomicQuery) -> Result<Arc<[u8]>> {
+        // 1. Hash-based blocklist check (no string comparison)
+        if self.blocklist.is_blocked_hash_atomic(query.name_hash) {
+            return Ok(self.get_blocked_response_atomic(query.id));
+        }
+        
+        // 2. Hash-based cache lookup (no deserialization)
+        if let Some(cached_response) = self.cache.get_by_hash_atomic(query.query_hash) {
+            // Update response ID in-place (only 2 bytes modified)
+            return Ok(self.update_response_id_zero_copy(cached_response, query.id));
+        }
+        
+        // 3. Hash-based zone lookup (no string operations)
+        let zone_hash = self.calculate_zone_hash_from_name_hash(query.name_hash);
+        if let Some(zone_data) = self.storage.get_zone_by_hash_atomic(zone_hash) {
+            // Direct FlatBuffer access using hash-based indexing
+            if let Some(record_data) = self.find_record_by_hash_atomic(&zone_data, query.name_hash, query.record_type) {
+                // Build response directly from FlatBuffer data (no deserialization)
+                let response = self.build_response_zero_copy(query.id, &record_data);
+                
+                // Cache the response for future hash-based lookups
+                self.cache.set_by_hash_atomic(query.query_hash, response.clone());
+                
+                return Ok(response);
+            }
+        }
+        
+        // 4. Return NXDOMAIN (pre-built response)
+        Ok(self.get_nxdomain_response_atomic(query.id))
+    }
+    
+    // Find record in FlatBuffer using only hash comparisons
+    fn find_record_by_hash_atomic(&self, zone_data: &[u8], name_hash: u64, record_type: u16) -> Option<&[u8]> {
+        // Access FlatBuffer root without deserialization
+        let zone = flatbuffers::root::<Zone>(zone_data).ok()?;
+        
+        // Hash-based binary search in sorted record array
+        let records = zone.records()?;
+        let mut left = 0;
+        let mut right = records.len();
+        
+        while left < right {
+            let mid = (left + right) / 2;
+            let record = records.get(mid);
+            
+            // Compare hashes only (no string deserialization)
+            let record_name_hash = record.name_hash();
+            let record_type_val = record.record_type();
+            
+            match (record_name_hash.cmp(&name_hash), record_type_val.cmp(&record_type)) {
+                (std::cmp::Ordering::Equal, std::cmp::Ordering::Equal) => {
+                    // Found exact match - return raw FlatBuffer bytes
+                    return Some(record.data_bytes());
+                }
+                (std::cmp::Ordering::Less, _) | (std::cmp::Ordering::Equal, std::cmp::Ordering::Less) => {
+                    left = mid + 1;
+                }
+                _ => {
+                    right = mid;
+                }
+            }
+        }
+        
+        None
+    }
+}
+
+// Pre-computed hash-based responses (ultimate zero-copy)
+pub struct PrecomputedResponseCache {
+    // Common query responses pre-built and cached
+    responses: Arc<lockfree::map::Map<u64, Arc<[u8]>>>,  // Query hash -> Response bytes
+    
+    // Atomic statistics
+    hit_count: AtomicU64,
+    total_queries: AtomicU64,
+}
+
+impl PrecomputedResponseCache {
+    // Get response using only hash lookup (fastest possible)
+    pub async fn get_response_atomic(&self, query_hash: u64, query_id: u16) -> Option<Arc<[u8]>> {
+        if let Some(template_response) = self.responses.get(&query_hash) {
+            self.hit_count.fetch_add(1, Ordering::Relaxed);
+            
+            // Only modify the 2-byte query ID in the response
+            let mut response = (*template_response).to_vec();
+            response[0] = (query_id >> 8) as u8;
+            response[1] = (query_id & 0xFF) as u8;
+            
+            Some(Arc::from(response.into_boxed_slice()))
+        } else {
+            None
+        }
+    }
+}
+```
 ```
 
 #### Zone Transfer Protocol
@@ -1335,14 +1561,42 @@ pub async fn process_query_zero_copy(&self, raw_query: Bytes) -> Result<Bytes> {
 - **Parallel Processing**: Multi-threaded processing where beneficial
 - **Hot Path Optimization**: Inline critical functions, minimize function calls
 
-### Kubernetes-Native Load Balancing and Scaling
-- **Kubernetes Service Integration**: Leverage built-in load balancing
-- **Ingress Controller Support**: Work with various ingress controllers
-- **Horizontal Pod Autoscaling (HPA)**: CPU/memory-based scaling
-- **Vertical Pod Autoscaling (VPA)**: Automatic resource request optimization
-- **Custom Metrics Scaling**: Scale based on DNS query rate and latency
-- **Multi-Zone Deployment**: Distribute pods across availability zones
-- **Pod Disruption Budgets**: Ensure availability during updates
+### Unlimited Scale Clustering Architecture
+
+#### No Limits on Cluster Size
+- **Consistent Hashing**: O(log N) routing with unlimited nodes
+- **Hierarchical Discovery**: Local → Regional → Global discovery layers
+- **Virtual Nodes**: 1000+ virtual nodes per physical node for perfect distribution
+- **Atomic Ring Updates**: Lock-free node addition/removal
+- **Hash-Based Routing**: No consensus required, pure mathematical distribution
+
+#### Zero-Copy Zone Replication
+- **FlatBuffer Transfer**: Raw bytes transferred without deserialization
+- **Memory-Mapped Compression**: LZ4 compression using memory mapping
+- **Parallel Replication**: Simultaneous transfer to multiple nodes
+- **Atomic Status Tracking**: Lock-free replication status updates
+- **Version-Based Sync**: Only transfer deltas, not full zones
+
+#### Hash-Only Query Processing
+- **No String Comparisons**: All operations use 64-bit hash comparisons
+- **No Deserialization**: FlatBuffer data accessed directly in memory
+- **Binary Search**: Hash-based binary search in sorted record arrays
+- **Pre-Built Responses**: Common queries cached as complete response packets
+- **2-Byte Updates**: Only query ID modified in cached responses
+
+#### Scalability Characteristics
+- **Unlimited Nodes**: Consistent hashing supports millions of nodes
+- **Linear Performance**: Query throughput scales linearly with nodes
+- **Constant Latency**: O(1) hash lookups regardless of cluster size
+- **Automatic Rebalancing**: New nodes automatically receive traffic
+- **Zero Coordination**: No leader election or consensus protocols
+
+### Kubernetes-Native Integration
+- **StatefulSet Deployment**: Persistent storage and stable network identities
+- **Headless Services**: Direct pod-to-pod communication for clustering
+- **Custom Resources**: DnsServer, DnsZone, DnsCluster CRDs
+- **Operator Management**: Automated lifecycle and scaling operations
+- **Multi-Zone Deployment**: Automatic distribution across availability zones
 - **Rolling Updates**: Zero-downtime deployments with health checks
 
 ### Monitoring and Profiling

@@ -1,0 +1,23 @@
+[package]
+name = "dns-cluster"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Planet-scale clustering and replication"
+
+[dependencies]
+dns-core = { path = "../dns-core" }
+dns-storage = { path = "../dns-storage" }
+tokio.workspace = true
+lockfree.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+ahash.workspace = true
+blake3.workspace = true
+
+[features]
+default = []

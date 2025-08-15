@@ -1,0 +1,57 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Generated files
+/src/generated/
+*.fbs.rs
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data
+/data/
+*.db
+*.mdb
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+
+# Profiling
+*.prof
+perf.data*
+flamegraph.svg
+
+# Coverage
+tarpaulin-report.html
+cobertura.xml
+
+# Benchmarks
+criterion/
+
+# Docker
+.dockerignore
+
+# Local configuration
+config.local.toml
+.env.local

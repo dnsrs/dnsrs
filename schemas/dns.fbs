@@ -1,0 +1,342 @@
+namespace dns.storage;
+
+// DNS record types enumeration
+enum RecordType : uint16 {
+    A = 1,
+    NS = 2,
+    CNAME = 5,
+    SOA = 6,
+    PTR = 12,
+    MX = 15,
+    TXT = 16,
+    AAAA = 28,
+    SRV = 33,
+    NAPTR = 35,
+    DS = 43,
+    RRSIG = 46,
+    NSEC = 47,
+    DNSKEY = 48,
+    NSEC3 = 50,
+    NSEC3PARAM = 51,
+    TLSA = 52,
+    SMIMEA = 53,
+    CDS = 59,
+    CDNSKEY = 60,
+    OPENPGPKEY = 61,
+    CSYNC = 62,
+    ZONEMD = 63,
+    SVCB = 64,
+    HTTPS = 65,
+    CAA = 257
+}
+
+// DNS header structure for zero-copy parsing
+table DnsHeader {
+    id: uint16;
+    flags: uint16;
+    qdcount: uint16;
+    ancount: uint16;
+    nscount: uint16;
+    arcount: uint16;
+}
+
+// Raw DNS packet for zero-copy operations
+table DnsPacket {
+    raw_data: [uint8];
+    parsed_header: DnsHeader;
+    question_offset: uint16;
+    answer_offset: uint16;
+    authority_offset: uint16;
+    additional_offset: uint16;
+}
+
+// Record data union for different DNS record types
+union RecordData {
+    ARecord,
+    AAAARecord,
+    MXRecord,
+    CNAMERecord,
+    NSRecord,
+    PTRRecord,
+    TXTRecord,
+    SRVRecord,
+    SOARecord,
+    DNSKEYRecord,
+    DSRecord,
+    RRSIGRecord,
+    NSECRecord,
+    NSEC3Record,
+    TLSARecord,
+    CAARecord,
+    SVCBRecord,
+    HTTPSRecord
+}
+
+// A record (IPv4)
+table ARecord {
+    address: uint32;
+}
+
+// AAAA record (IPv6)
+table AAAARecord {
+    address: [uint8:16];
+}
+
+// MX record
+table MXRecord {
+    priority: uint16;
+    exchange: string;
+}
+
+// CNAME record
+table CNAMERecord {
+    cname: string;
+}
+
+// NS record
+table NSRecord {
+    nsdname: string;
+}
+
+// PTR record
+table PTRRecord {
+    ptrdname: string;
+}
+
+// TXT record
+table TXTRecord {
+    txt_data: [string];
+}
+
+// SRV record
+table SRVRecord {
+    priority: uint16;
+    weight: uint16;
+    port: uint16;
+    target: string;
+}
+
+// SOA record
+table SOARecord {
+    mname: string;
+    rname: string;
+    serial: uint32;
+    refresh: uint32;
+    retry: uint32;
+    expire: uint32;
+    minimum: uint32;
+}
+
+// DNSKEY record
+table DNSKEYRecord {
+    flags: uint16;
+    protocol: uint8;
+    algorithm: uint8;
+    public_key: [uint8];
+}
+
+// DS record
+table DSRecord {
+    key_tag: uint16;
+    algorithm: uint8;
+    digest_type: uint8;
+    digest: [uint8];
+}
+
+// RRSIG record
+table RRSIGRecord {
+    type_covered: uint16;
+    algorithm: uint8;
+    labels: uint8;
+    original_ttl: uint32;
+    signature_expiration: uint32;
+    signature_inception: uint32;
+    key_tag: uint16;
+    signer_name: string;
+    signature: [uint8];
+}
+
+// NSEC record
+table NSECRecord {
+    next_domain_name: string;
+    type_bit_maps: [uint8];
+}
+
+// NSEC3 record
+table NSEC3Record {
+    hash_algorithm: uint8;
+    flags: uint8;
+    iterations: uint16;
+    salt_length: uint8;
+    salt: [uint8];
+    hash_length: uint8;
+    next_hashed_owner_name: [uint8];
+    type_bit_maps: [uint8];
+}
+
+// TLSA record
+table TLSARecord {
+    cert_usage: uint8;
+    selector: uint8;
+    matching_type: uint8;
+    cert_association_data: [uint8];
+}
+
+// CAA record
+table CAARecord {
+    flags: uint8;
+    tag: string;
+    value: [uint8];
+}
+
+// SVCB record
+table SVCBRecord {
+    svc_priority: uint16;
+    target_name: string;
+    svc_params: [SVCParam];
+}
+
+// HTTPS record (alias for SVCB)
+table HTTPSRecord {
+    svc_priority: uint16;
+    target_name: string;
+    svc_params: [SVCParam];
+}
+
+// Service parameter for SVCB/HTTPS records
+table SVCParam {
+    key: uint16;
+    value: [uint8];
+}
+
+// DNS record structure
+table DnsRecord {
+    name_hash: uint64;          // Pre-computed hash for fast lookup
+    name: string;               // Original domain name
+    record_type: RecordType;
+    class: uint16;              // DNS class (usually IN = 1)
+    ttl: uint32;
+    data: RecordData;
+    created_at: uint64;         // Unix timestamp
+    updated_at: uint64;         // Unix timestamp
+}
+
+// Pre-built DNS response for zero-copy serving
+table PrebuiltResponse {
+    query_hash: uint64;         // Hash of query (name + type + class)
+    response_packet: [uint8];   // Complete DNS response packet
+    ttl_expires_at: uint64;     // When this response expires
+    hit_count: uint64;          // Access counter for LRU
+    last_accessed: uint64;      // Last access timestamp
+}
+
+// Zone metadata
+table ZoneMetadata {
+    name: string;
+    name_hash: uint64;          // Pre-computed hash
+    serial: uint32;
+    version: uint64;            // Internal version counter
+    last_modified: uint64;      // Unix timestamp
+    record_count: uint32;
+    size_bytes: uint64;
+    is_authoritative: bool;
+    dnssec_enabled: bool;
+}
+
+// Complete zone structure optimized for zero-copy access
+table Zone {
+    metadata: ZoneMetadata;
+    
+    // Pre-built responses for common queries (fastest path)
+    prebuilt_responses: [PrebuiltResponse];
+    
+    // Hash-indexed records for dynamic queries
+    records: [DnsRecord];
+    
+    // SOA record (required for all zones)
+    soa: SOARecord;
+    
+    // DNSSEC keys if enabled
+    dnskeys: [DNSKEYRecord];
+    
+    // Zone signing parameters
+    nsec3_params: NSEC3Record;
+}
+
+// Zone delta for incremental updates
+table ZoneDelta {
+    zone_hash: uint64;
+    from_version: uint64;
+    to_version: uint64;
+    timestamp: uint64;
+    operations: [DeltaOperation];
+}
+
+// Delta operation for zone updates
+table DeltaOperation {
+    operation_type: DeltaOperationType;
+    name_hash: uint64;
+    record_type: RecordType;
+    old_data: RecordData;       // For updates/deletes
+    new_data: RecordData;       // For updates/adds
+}
+
+enum DeltaOperationType : uint8 {
+    Add = 0,
+    Remove = 1,
+    Update = 2
+}
+
+// Blocklist entry for ad-blocking
+table BlocklistEntry {
+    domain_hash: uint64;        // Pre-computed hash
+    domain_pattern: string;     // Original pattern (for wildcards)
+    block_type: BlockType;
+    created_at: uint64;
+    source: string;             // Source list name
+}
+
+enum BlockType : uint8 {
+    Exact = 0,
+    Wildcard = 1,
+    Regex = 2
+}
+
+// Blocklist structure
+table Blocklist {
+    version: uint64;
+    last_updated: uint64;
+    entries: [BlocklistEntry];
+    bloom_filter_data: [uint8]; // Serialized bloom filter for fast negative lookups
+}
+
+// Cluster node information
+table NodeInfo {
+    node_id: uint64;            // Hash-based node ID
+    address: string;            // IP:Port
+    region: string;             // Geographic region
+    datacenter: string;         // Datacenter identifier
+    capabilities: [string];     // Supported features
+    load_factor: float32;       // Current load (0.0 - 1.0)
+    last_seen: uint64;          // Unix timestamp
+    is_healthy: bool;
+}
+
+// Cluster state
+table ClusterState {
+    cluster_id: uint64;
+    version: uint64;
+    nodes: [NodeInfo];
+    hash_ring_data: [uint8];    // Serialized consistent hash ring
+    zone_assignments: [ZoneAssignment];
+}
+
+// Zone assignment to nodes
+table ZoneAssignment {
+    zone_hash: uint64;
+    primary_nodes: [uint64];    // Node IDs
+    replica_nodes: [uint64];    // Node IDs
+    replication_factor: uint8;
+}
+
+root_type Zone;

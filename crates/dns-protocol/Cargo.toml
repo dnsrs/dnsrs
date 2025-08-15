@@ -1,0 +1,36 @@
+[package]
+name = "dns-protocol"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "DNS protocol implementation with FlatBuffers support"
+
+[dependencies]
+dns-core = { path = "../dns-core" }
+tokio.workspace = true
+tokio-util.workspace = true
+flatbuffers.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[features]
+default = []
+doh = ["hyper"]
+dot = ["rustls"]
+doq = ["quinn"]
+
+[dependencies.hyper]
+workspace = true
+optional = true
+
+[dependencies.rustls]
+workspace = true
+optional = true
+
+[dependencies.quinn]
+workspace = true
+optional = true
