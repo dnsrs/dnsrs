@@ -1,4 +1,4 @@
-# Planet Scale DNS Server
+# DNSRS
 
 A high-performance, planet-scale DNS server implementation in Rust with zero-copy operations, atomic data structures, and unlimited clustering capabilities.
 
@@ -40,7 +40,7 @@ make install-deps
 make build
 
 # Run in development mode
-cargo run --bin planet-dns
+cargo run --bin dnsrs
 
 # Build optimized release
 make release

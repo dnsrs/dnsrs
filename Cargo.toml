@@ -12,9 +12,9 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Planet Scale DNS Team"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/planetscale/dns-server"
+authors = ["DNSRS Team"]
+license = "Apache-2.0"
+repository = "https://github.com/dnsrs/dnsrs"
 rust-version = "1.75"
 
 [workspace.dependencies]
