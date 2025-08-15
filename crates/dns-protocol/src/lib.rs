@@ -1,12 +1,8 @@
-//! DNS protocol implementation with FlatBuffers support
+//! DNS protocol implementation with zero-copy parsing
 //!
-//! This crate provides high-performance DNS protocol handlers for UDP, TCP,
-//! DNS over HTTPS (DoH), DNS over TLS (DoT), and DNS over QUIC (DoQ).
+//! This crate provides high-performance DNS protocol handling using
+//! FlatBuffers for zero-copy serialization and parsing.
 
-pub mod handlers;
 pub mod packet;
-pub mod parser;
 
-pub use handlers::*;
 pub use packet::*;
-pub use parser::*;

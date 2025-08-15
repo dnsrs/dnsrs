@@ -6,16 +6,20 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "DNS protocol implementation with FlatBuffers support"
+description = "DNS protocol implementation with zero-copy parsing"
 
 [dependencies]
 dns-core = { path = "../dns-core" }
 tokio.workspace = true
-tokio-util.workspace = true
 flatbuffers.workspace = true
 bytes.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+serde.workspace = true
+bincode = "1.3"
+
+[build-dependencies]
+flatbuffers = "25.2"
 
 [features]
 default = []

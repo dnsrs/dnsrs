@@ -22,7 +22,21 @@ ahash.workspace = true
 [features]
 default = []
 compression = ["lz4"]
+simd = ["wide"]
+
+[dependencies.wide]
+workspace = true
+optional = true
 
 [dependencies.lz4]
 version = "1.24"
 optional = true
+
+[dev-dependencies]
+tempfile = "3.8"
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+dns-protocol = { path = "../dns-protocol" }
+
+[[example]]
+name = "zero_copy_demo"
+path = "../../examples/zero_copy_demo.rs"

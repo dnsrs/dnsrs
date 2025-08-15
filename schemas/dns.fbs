@@ -48,6 +48,16 @@ table DnsPacket {
     answer_offset: uint16;
     authority_offset: uint16;
     additional_offset: uint16;
+    // Hash-based indexing for fast lookups
+    packet_hash: uint64;
+    query_hash: uint64;
+    // Pre-computed response flags
+    is_response: bool;
+    is_authoritative: bool;
+    is_truncated: bool;
+    // Zero-copy optimization hints
+    can_serve_from_cache: bool;
+    requires_dnssec: bool;
 }
 
 // Record data union for different DNS record types
@@ -228,6 +238,12 @@ table PrebuiltResponse {
     ttl_expires_at: uint64;     // When this response expires
     hit_count: uint64;          // Access counter for LRU
     last_accessed: uint64;      // Last access timestamp
+    // Zero-copy optimization fields
+    response_size: uint16;      // Size for quick allocation
+    compression_ratio: float32; // For storage optimization
+    is_compressed: bool;        // Whether packet is compressed
+    // Hash-based validation
+    packet_checksum: uint32;    // Fast integrity check
 }
 
 // Zone metadata
