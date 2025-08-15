@@ -1,0 +1,66 @@
+Optimized Zero-Copy Performance Demo
+=======================================
+
+Test parameters (Planet Scale):
+  - 1000000 unique domains
+  - 10000000 lookups
+  - 10000000 lookups
+
+1. Optimized Hash-Based Lookups:
+  Setting up traditional HashMap...
+  Setting up optimized hash map...
+  Benchmarking traditional HashMap lookups...
+
+1. Optimized Hash-Based Lookups:
+  Setting up traditional HashMap...
+  Setting up optimized hash map...
+  Benchmarking traditional HashMap lookups...
+  Setting up optimized hash map...
+  Benchmarking traditional HashMap lookups...
+  Benchmarking optimized hash lookups...
+  Results:
+    Traditional HashMap (with strings):
+      Setup time: 205.6555ms
+      Lookup time: 844.5168ms (84.45 ns/lookup)
+  Benchmarking optimized hash lookups...
+  Results:
+    Traditional HashMap (with strings):
+      Setup time: 205.6555ms
+      Lookup time: 844.5168ms (84.45 ns/lookup)
+      Hits: 10000000
+    Optimized Hash Map (hash-only):
+      Setup time: 124.8941ms
+      Lookup time: 230.419ms (23.04 ns/lookup)
+      Hits: 10000000
+    Speedup: 3.67x faster
+    Memory usage:
+      Lookup time: 230.419ms (23.04 ns/lookup)
+      Hits: 10000000
+    Speedup: 3.67x faster
+    Memory usage:
+    Speedup: 3.67x faster
+    Memory usage:
+      Strings: 23888890 bytes
+    Memory usage:
+      Strings: 23888890 bytes
+      Strings: 23888890 bytes
+      Hashes: 8000000 bytes (3.0x reduction)
+
+      Hashes: 8000000 bytes (3.0x reduction)
+
+
+2. True Zero-Copy Packet Parsing:
+  Benchmarking traditional parsing (with allocations)...
+  Benchmarking true zero-copy parsing...
+  Results:
+    Traditional parsing: 14.8832ms (148.83 ns/packet)
+    Zero-copy parsing: 100ns (0.00 ns/packet)
+    Speedup: 148832.00x faster
+
+3. Memory Access Pattern Analysis:
+  Benchmarking traditional Vec<u8> allocations...
+  Benchmarking zero-copy memory access...
+  Results:
+    Traditional allocations: 59.5061ms (5.95 μs/allocation)
+    Zero-copy access: 37.2µs (3.72 ns/access)
+    Speedup: 1600x faster

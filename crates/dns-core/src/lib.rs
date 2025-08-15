@@ -7,8 +7,10 @@ pub mod error;
 pub mod types;
 pub mod hash;
 pub mod metrics;
+pub mod atomic;
 
 pub use error::{DnsError, DnsResult};
 pub use types::*;
 pub use hash::*;
 pub use metrics::*;
+pub use atomic::*;

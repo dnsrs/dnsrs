@@ -13,6 +13,8 @@ thiserror.workspace = true
 bytes.workspace = true
 ahash.workspace = true
 tracing.workspace = true
+lockfree.workspace = true
+crossbeam.workspace = true
 
 [dependencies.serde]
 workspace = true
