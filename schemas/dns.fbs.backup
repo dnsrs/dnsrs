@@ -2,7 +2,6 @@ namespace dns.storage;
 
 // DNS record types enumeration
 enum RecordType : uint16 {
-    UNKNOWN = 0,
     A = 1,
     NS = 2,
     CNAME = 5,
@@ -285,22 +284,6 @@ table Zone {
     nsec3_params: NSEC3Record;
 }
 
-// Delta operation type enum
-enum DeltaOperationType : uint8 {
-    Add = 0,
-    Remove = 1,
-    Update = 2
-}
-
-// Delta operation for zone updates
-table DeltaOperation {
-    operation_type: DeltaOperationType;
-    name_hash: uint64;
-    record_type: RecordType;  // Record type
-    old_data: RecordData;       // For updates/deletes
-    new_data: RecordData;       // For updates/adds
-}
-
 // Zone delta for incremental updates
 table ZoneDelta {
     zone_hash: uint64;
@@ -310,11 +293,19 @@ table ZoneDelta {
     operations: [DeltaOperation];
 }
 
-// Block type enum
-enum BlockType : uint8 {
-    Exact = 0,
-    Wildcard = 1,
-    Regex = 2
+// Delta operation for zone updates
+table DeltaOperation {
+    operation_type: DeltaOperationType;
+    name_hash: uint64;
+    record_type_value: uint16;  // Record type as numeric value
+    old_data: RecordData;       // For updates/deletes
+    new_data: RecordData;       // For updates/adds
+}
+
+enum DeltaOperationType : uint8 {
+    Add = 0,
+    Remove = 1,
+    Update = 2
 }
 
 // Blocklist entry for ad-blocking
@@ -324,6 +315,12 @@ table BlocklistEntry {
     block_type: BlockType;
     created_at: uint64;
     source: string;             // Source list name
+}
+
+enum BlockType : uint8 {
+    Exact = 0,
+    Wildcard = 1,
+    Regex = 2
 }
 
 // Blocklist structure

@@ -38,7 +38,7 @@ pub struct MmapDiskStorage {
 /// Memory-mapped zone file with atomic metadata
 pub struct MappedZoneFile {
     /// Memory-mapped file data
-    mmap: Arc<Mmap>,
+    pub mmap: Arc<Mmap>,
     
     /// File metadata
     file_path: PathBuf,

@@ -18,6 +18,8 @@ memmap2.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 ahash.workspace = true
+serde = { workspace = true, features = ["derive"] }
+bincode.workspace = true
 
 [features]
 default = []

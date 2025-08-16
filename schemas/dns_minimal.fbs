@@ -1,0 +1,17 @@
+namespace dns.storage;
+
+// DNS record types enumeration
+enum RecordType : uint16 {
+    UNKNOWN = 0,
+    A = 1,
+    NS = 2,
+    CNAME = 5
+}
+
+// Simple test table
+table TestRecord {
+    name: string;
+    record_type: RecordType;
+}
+
+root_type TestRecord;

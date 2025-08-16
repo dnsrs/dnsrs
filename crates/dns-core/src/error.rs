@@ -157,6 +157,21 @@ pub enum DnsError {
     
     #[error("Invalid state: {message}")]
     InvalidState { message: String },
+    
+    #[error("Invalid input: {message}")]
+    InvalidInput { message: String },
+    
+    #[error("Serialization error: {message}")]
+    SerializationError { message: String },
+    
+    #[error("Zone already exists: {zone_name}")]
+    ZoneAlreadyExists { zone_name: String },
+    
+    #[error("Concurrency error: {message}")]
+    ConcurrencyError { message: String },
+    
+    #[error("Storage error: {message}")]
+    StorageError { message: String },
 }
 
 impl DnsError {
@@ -282,6 +297,12 @@ impl DnsError {
             Self::Timeout { .. } |
             Self::NotImplemented { .. } |
             Self::InvalidState { .. } => "internal",
+            
+            Self::InvalidInput { .. } => "input",
+            Self::SerializationError { .. } => "serialization",
+            Self::ZoneAlreadyExists { .. } => "storage",
+            Self::ConcurrencyError { .. } => "concurrency",
+            Self::StorageError { .. } => "storage",
         }
     }
 }
