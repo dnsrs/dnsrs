@@ -172,6 +172,10 @@ pub enum DnsError {
     
     #[error("Storage error: {message}")]
     StorageError { message: String },
+    
+    // Blocklist errors
+    #[error("Blocklist update failed: {0}")]
+    BlocklistUpdate(String),
 }
 
 impl DnsError {
@@ -303,6 +307,7 @@ impl DnsError {
             Self::ZoneAlreadyExists { .. } => "storage",
             Self::ConcurrencyError { .. } => "concurrency",
             Self::StorageError { .. } => "storage",
+            Self::BlocklistUpdate(..) => "blocklist",
         }
     }
 }

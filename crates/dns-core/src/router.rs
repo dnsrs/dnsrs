@@ -13,9 +13,10 @@ use crate::types::{DnsQuery, ResponseCode};
 use crate::hash::{hash_domain_name, hash_query, hash_client_ip};
 use crate::error::{DnsError, DnsResult};
 use crate::query::{
-    AtomicQuery, PreComputedResponseCache, AtomicBlocklistEngine, AtomicRateLimiter,
-    BlockType, RateLimitStats, BlocklistStats, PreComputedCacheStats
+    AtomicQuery, PreComputedResponseCache, AtomicRateLimiter,
+    RateLimitStats, PreComputedCacheStats
 };
+use crate::blocklist::{AtomicBlocklistEngine, BlockResponse, BlocklistEngineStats};
 use crate::resolver::{AtomicZeroCopyResolver, ResolverStatsSnapshot};
 use crate::atomic::AtomicStatsCollector;
 
@@ -42,6 +43,8 @@ pub struct RouterStats {
     pub total_queries: AtomicU64,
     /// Queries per second (updated periodically)
     pub queries_per_second: AtomicU64,
+    /// Successful queries
+    pub successful_queries: AtomicU64,
     /// Blocked queries
     pub blocked_queries: AtomicU64,
     /// Rate limited queries
@@ -70,6 +73,7 @@ impl RouterStats {
         Self {
             total_queries: AtomicU64::new(0),
             queries_per_second: AtomicU64::new(0),
+            successful_queries: AtomicU64::new(0),
             blocked_queries: AtomicU64::new(0),
             rate_limited_queries: AtomicU64::new(0),
             cache_hits: AtomicU64::new(0),
@@ -88,7 +92,7 @@ impl RouterStats {
         self.total_queries.fetch_add(1, Ordering::Relaxed);
         
         match result {
-            QueryResult::Blocked => self.blocked_queries.fetch_add(1, Ordering::Relaxed),
+            QueryResult::Success(_) => self.successful_queries.fetch_add(1, Ordering::Relaxed),
             QueryResult::RateLimited => self.rate_limited_queries.fetch_add(1, Ordering::Relaxed),
             QueryResult::CacheHit(_) => self.cache_hits.fetch_add(1, Ordering::Relaxed),
             QueryResult::Resolved(_) => self.cache_misses.fetch_add(1, Ordering::Relaxed),
@@ -159,8 +163,8 @@ pub struct RouterStatsSnapshot {
 /// Query processing result
 #[derive(Debug)]
 pub enum QueryResult {
-    /// Query was blocked by blocklist
-    Blocked,
+    /// Query was successfully processed
+    Success(Arc<[u8]>),
     /// Query was rate limited
     RateLimited,
     /// Response served from cache
@@ -175,7 +179,7 @@ pub enum QueryResult {
 
 impl AtomicQueryRouter {
     /// Create new atomic query router
-    pub fn new(
+    pub async fn new(
         max_cache_size_mb: u64,
         max_cache_entries: usize,
         global_max_qps: u64,
@@ -184,7 +188,7 @@ impl AtomicQueryRouter {
         Self {
             resolver: Arc::new(AtomicZeroCopyResolver::new()),
             cache: Arc::new(PreComputedResponseCache::new()),
-            blocklist: Arc::new(AtomicBlocklistEngine::new()),
+            blocklist: Arc::new(AtomicBlocklistEngine::new(crate::blocklist::BlocklistConfig::default()).await.unwrap()),
             rate_limiter: Arc::new(AtomicRateLimiter::new(global_max_qps, per_client_max_qps)),
             stats: Arc::new(AtomicStatsCollector::new()),
             router_stats: Arc::new(RouterStats::new()),
@@ -200,7 +204,7 @@ impl AtomicQueryRouter {
         let atomic_query = AtomicQuery::from_dns_query(&query);
         
         // Process query through atomic pipeline
-        let result = self.process_query_pipeline(&atomic_query).await;
+        let result = self.process_query_pipeline(&atomic_query, &query).await;
         
         // Record statistics
         let response_time_ns = start_time.elapsed().as_nanos() as u64;
@@ -209,17 +213,8 @@ impl AtomicQueryRouter {
         
         // Return response based on result
         match result {
-            QueryResult::Blocked => {
-                // Generate blocked response
-                if let Some(blocked_response) = self.blocklist.generate_blocked_response(
-                    atomic_query.id,
-                    atomic_query.name_hash,
-                ) {
-                    Ok(blocked_response)
-                } else {
-                    Ok(self.build_nxdomain_response(atomic_query.id))
-                }
-            }
+            QueryResult::Success(response) => Ok(response),
+
             QueryResult::RateLimited => {
                 Ok(self.build_refused_response(atomic_query.id))
             }
@@ -235,15 +230,16 @@ impl AtomicQueryRouter {
     }
     
     /// Process query through atomic pipeline
-    async fn process_query_pipeline(&self, query: &AtomicQuery) -> QueryResult {
+    async fn process_query_pipeline(&self, query: &AtomicQuery, original_query: &DnsQuery) -> QueryResult {
         // 1. Rate limiting check (fastest rejection)
         if !self.rate_limiter.check_rate_limit(query.client_hash, 1) {
             return QueryResult::RateLimited;
         }
         
         // 2. Blocklist check (second fastest rejection)
-        if self.blocklist.is_blocked_atomic(query.name_hash) {
-            return QueryResult::Blocked;
+        if let Some(block_response) = self.blocklist.is_blocked_atomic(original_query.name_hash, &original_query.name, original_query.client_addr, original_query.record_type.to_u16()).await {
+            let response_bytes = self.blocklist.generate_block_response(query.id, &block_response);
+            return QueryResult::Success(Arc::from(response_bytes.as_ref()));
         }
         
         // 3. Pre-computed cache lookup (fastest positive response)
@@ -273,13 +269,13 @@ impl AtomicQueryRouter {
             .collect();
         
         // Process queries in parallel
-        let futures = atomic_queries.iter().map(|query| {
+        let futures = atomic_queries.iter().zip(queries.iter()).map(|(atomic_query, original_query)| {
             let router = self.clone();
             async move {
                 let start_time = Instant::now();
                 router.router_stats.active_queries.fetch_add(1, Ordering::Relaxed);
                 
-                let result = router.process_query_pipeline(query).await;
+                let result = router.process_query_pipeline(atomic_query, original_query).await;
                 
                 let response_time_ns = start_time.elapsed().as_nanos() as u64;
                 router.router_stats.record_query(response_time_ns, &result);
@@ -287,21 +283,13 @@ impl AtomicQueryRouter {
                 
                 // Convert result to response
                 match result {
-                    QueryResult::Blocked => {
-                        if let Some(blocked_response) = router.blocklist.generate_blocked_response(
-                            query.id,
-                            query.name_hash,
-                        ) {
-                            Ok(blocked_response)
-                        } else {
-                            Ok(router.build_nxdomain_response(query.id))
-                        }
-                    }
-                    QueryResult::RateLimited => Ok(router.build_refused_response(query.id)),
+                    QueryResult::Success(response) => Ok(response),
+
+                    QueryResult::RateLimited => Ok(router.build_refused_response(original_query.id)),
                     QueryResult::CacheHit(response) => Ok(response),
                     QueryResult::Resolved(response) => Ok(response),
-                    QueryResult::NxDomain => Ok(router.build_nxdomain_response(query.id)),
-                    QueryResult::Error(_) => Ok(router.build_servfail_response(query.id)),
+                    QueryResult::NxDomain => Ok(router.build_nxdomain_response(original_query.id)),
+                    QueryResult::Error(_) => Ok(router.build_servfail_response(original_query.id)),
                 }
             }
         });
@@ -310,23 +298,23 @@ impl AtomicQueryRouter {
     }
     
     /// Add domain to blocklist
-    pub fn add_blocked_domain(&self, domain: &str, block_type: BlockType) -> bool {
-        self.blocklist.add_blocked_domain(domain, block_type)
+    pub async fn add_blocked_domain(&self, domain: &str, pattern_type: crate::blocklist::PatternType, custom_response: Option<BlockResponse>) -> DnsResult<()> {
+        self.blocklist.add_domain_atomic(domain, pattern_type, custom_response).await
     }
     
     /// Add domain to whitelist
-    pub fn add_whitelist_domain(&self, domain: &str) -> bool {
-        self.blocklist.add_whitelist_domain(domain)
+    pub async fn add_whitelist_domain(&self, domain: &str) -> bool {
+        self.blocklist.add_whitelist_domain_atomic(domain).await.is_ok()
     }
     
     /// Remove domain from blocklist
     pub fn remove_blocked_domain(&self, domain: &str) -> bool {
-        self.blocklist.remove_blocked_domain(domain)
+        false // TODO: Implement remove_blocked_domain_atomic
     }
     
     /// Remove domain from whitelist
-    pub fn remove_whitelist_domain(&self, domain: &str) -> bool {
-        self.blocklist.remove_whitelist_domain(domain)
+    pub async fn remove_whitelist_domain(&self, domain: &str) -> bool {
+        self.blocklist.remove_whitelist_domain_atomic(domain).await.unwrap_or(false)
     }
     
     /// Get comprehensive statistics
@@ -437,17 +425,18 @@ pub struct ComprehensiveStats {
     pub router: RouterStatsSnapshot,
     pub resolver: ResolverStatsSnapshot,
     pub cache: PreComputedCacheStats,
-    pub blocklist: BlocklistStats,
+    pub blocklist: BlocklistEngineStats,
     pub rate_limiter: RateLimitStats,
 }
 
-impl Default for AtomicQueryRouter {
-    fn default() -> Self {
+impl AtomicQueryRouter {
+    /// Create default router configuration
+    pub async fn default() -> Self {
         Self::new(
             1024,    // 1GB cache
             1000000, // 1M cache entries
             100000,  // 100K global QPS
             1000,    // 1K per-client QPS
-        )
+        ).await
     }
 }

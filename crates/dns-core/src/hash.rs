@@ -106,9 +106,28 @@ pub fn simd_hash_batch(names: &[&str]) -> Vec<u64> {
     names.iter().map(|name| hash_domain_name(name)).collect()
 }
 
+/// Atomic hasher for thread-safe hashing operations
+pub struct AtomicHasher;
+
+impl AtomicHasher {
+    /// Hash a domain name atomically
+    pub fn hash_domain(name: &str) -> u64 {
+        hash_domain_name(name)
+    }
+    
+    /// Hash a query atomically
+    pub fn hash_query(name_hash: u64, record_type: u16, class: u16) -> u64 {
+        hash_query(name_hash, record_type, class)
+    }
+    
+    /// Hash client IP atomically
+    pub fn hash_client_ip(ip: &std::net::IpAddr) -> u64 {
+        hash_client_ip(ip)
+    }
+}
+
 /// Consistent hash ring utilities
 pub mod consistent_hash {
-    use super::*;
     
     /// Calculate the hash ring position for a key
     pub fn ring_position(key: u64) -> u64 {

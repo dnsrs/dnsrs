@@ -11,6 +11,7 @@ pub mod atomic;
 pub mod query;
 pub mod resolver;
 pub mod router;
+pub mod blocklist;
 
 #[cfg(test)]
 mod tests;
@@ -23,3 +24,4 @@ pub use atomic::*;
 pub use query::*;
 pub use resolver::*;
 pub use router::*;
+pub use blocklist::*;

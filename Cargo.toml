@@ -6,6 +6,8 @@ members = [
     "crates/dns-cluster",
     "crates/dns-api",
     "crates/dns-server",
+    "crates/dns-security",
+    "crates/dns-monitoring",
 ]
 resolver = "2"
 
@@ -49,6 +51,16 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 prometheus = "0.14"
 
+# Monitoring dependencies
+opentelemetry = "0.27"
+opentelemetry-otlp = "0.27"
+opentelemetry_sdk = "0.27"
+tracing-opentelemetry = "0.28"
+pprof = { version = "0.14", features = ["flamegraph", "protobuf-codec"] }
+sysinfo = "0.32"
+chrono = { version = "0.4", features = ["serde"] }
+url = "2.5"
+
 # Hashing and crypto
 ahash = "0.8"
 blake3 = "1.8"
@@ -60,6 +72,9 @@ memmap2 = "0.9"
 # Configuration
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.9"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
 
 # Testing
 criterion = "0.7"

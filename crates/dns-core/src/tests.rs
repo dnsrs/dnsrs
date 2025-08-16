@@ -4,7 +4,8 @@
 mod tests {
     use super::*;
     use crate::types::{DnsQuery, RecordType, DnsClass};
-    use crate::query::{AtomicQuery, BlockType};
+    use crate::query::AtomicQuery;
+    use crate::blocklist::{BlockResponse, PatternType};
     use crate::router::AtomicQueryRouter;
     use crate::resolver::{HashIndexedRecord, HashIndexedZone};
     use std::net::IpAddr;
@@ -33,10 +34,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_blocklist_functionality() {
-        let router = AtomicQueryRouter::default();
+        let router = AtomicQueryRouter::default().await;
         
         // Add domain to blocklist
-        assert!(router.add_blocked_domain("ads.example.com", BlockType::NxDomain));
+        router.add_blocked_domain("ads.example.com", PatternType::Exact, Some(BlockResponse::NxDomain)).await.unwrap();
         
         // Create query for blocked domain
         let dns_query = DnsQuery::new(
@@ -58,13 +59,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_whitelist_override() {
-        let router = AtomicQueryRouter::default();
+        let router = AtomicQueryRouter::default().await;
         
         // Add domain to blocklist
-        assert!(router.add_blocked_domain("example.com", BlockType::NxDomain));
+        router.add_blocked_domain("example.com", PatternType::Exact, Some(BlockResponse::NxDomain)).await.unwrap();
         
         // Add same domain to whitelist (should override blocklist)
-        assert!(router.add_whitelist_domain("example.com"));
+        router.add_whitelist_domain("example.com").await;
         
         // Create query for whitelisted domain
         let dns_query = DnsQuery::new(
@@ -156,10 +157,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_comprehensive_stats() {
-        let router = AtomicQueryRouter::default();
+        let router = AtomicQueryRouter::default().await;
         
         // Add some test data
-        router.add_blocked_domain("ads.com", BlockType::NxDomain);
+        router.add_blocked_domain("ads.com", PatternType::Exact, Some(BlockResponse::NxDomain)).await.unwrap();
         
         // Process a query
         let dns_query = DnsQuery::new(
@@ -176,12 +177,12 @@ mod tests {
         let stats = router.get_comprehensive_stats();
         
         assert!(stats.router.total_queries > 0);
-        assert_eq!(stats.blocklist.blocklist_size, 1);
+        assert_eq!(stats.blocklist.domains_added, 1);
     }
 
     #[tokio::test]
     async fn test_batch_query_processing() {
-        let router = AtomicQueryRouter::default();
+        let router = AtomicQueryRouter::default().await;
         
         // Create multiple queries
         let queries = vec![

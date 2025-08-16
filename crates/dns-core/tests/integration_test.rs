@@ -1,7 +1,7 @@
 //! Integration test for the hash-based query processing engine
 
 use dns_core::{
-    AtomicQueryRouter, HashIndexedRecord, HashIndexedZone, BlockType,
+    AtomicQueryRouter, HashIndexedRecord, HashIndexedZone, BlockResponse, PatternType,
     DnsQuery, RecordType, DnsClass, hash_domain_name,
 };
 use std::net::IpAddr;
@@ -18,14 +18,14 @@ async fn test_hash_based_query_processing_integration() {
         100000,  // 100K cache entries
         50000,   // 50K global QPS
         1000,    // 1K per-client QPS
-    );
+    ).await;
     
     // Add some domains to the blocklist
-    assert!(router.add_blocked_domain("ads.example.com", BlockType::NxDomain));
-    assert!(router.add_blocked_domain("tracker.evil.com", BlockType::ZeroZeroZeroZero));
+    router.add_blocked_domain("ads.example.com", PatternType::Exact, Some(BlockResponse::NxDomain)).await.unwrap();
+    router.add_blocked_domain("tracker.evil.com", PatternType::Exact, Some(BlockResponse::CustomIp("0.0.0.0".parse().unwrap()))).await.unwrap();
     
     // Add a whitelisted domain (overrides blocklist)
-    assert!(router.add_whitelist_domain("ads.example.com"));
+    router.add_whitelist_domain("ads.example.com").await;
     
     // Create test zone data with hash-indexed records
     let records = vec![
@@ -148,8 +148,8 @@ async fn test_hash_based_query_processing_integration() {
     // Test 6: Statistics
     let stats = router.get_comprehensive_stats();
     assert!(stats.router.total_queries > 0);
-    assert_eq!(stats.blocklist.blocklist_size, 2); // Two blocked domains
-    assert_eq!(stats.blocklist.whitelist_size, 1); // One whitelisted domain
+    assert_eq!(stats.blocklist.domains_added, 2); // Two blocked domains
+    assert_eq!(stats.blocklist.whitelist_added, 1); // One whitelisted domain
     
     println!("✅ All integration tests passed!");
     println!("   Total queries processed: {}", stats.router.total_queries);
@@ -245,7 +245,7 @@ async fn test_binary_search_performance() {
 async fn test_hash_collision_handling() {
     println!("🔢 Hash Collision Handling Test");
     
-    let router = AtomicQueryRouter::default();
+    let router = AtomicQueryRouter::default().await;
     
     // Test with domains that might have hash collisions
     let test_domains = vec![

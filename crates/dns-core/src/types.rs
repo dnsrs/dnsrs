@@ -196,6 +196,77 @@ impl DnsQuery {
     pub fn query_hash(&self) -> u64 {
         crate::hash::hash_query(self.name_hash, self.record_type.to_u16(), self.class.to_u16())
     }
+    
+    /// Parse DNS query from bytes
+    pub fn from_bytes(data: &[u8]) -> crate::DnsResult<Self> {
+        // Basic DNS packet parsing
+        if data.len() < 12 {
+            return Err(crate::DnsError::invalid_packet("Packet too short"));
+        }
+        
+        let id = u16::from_be_bytes([data[0], data[1]]);
+        let flags = u16::from_be_bytes([data[2], data[3]]);
+        let qdcount = u16::from_be_bytes([data[4], data[5]]);
+        
+        if qdcount != 1 {
+            return Err(crate::DnsError::invalid_packet("Expected exactly one question"));
+        }
+        
+        // Parse question section (simplified)
+        let mut offset = 12;
+        let mut name = String::new();
+        
+        // Parse domain name
+        while offset < data.len() {
+            let len = data[offset] as usize;
+            if len == 0 {
+                offset += 1;
+                break;
+            }
+            
+            if len > 63 {
+                return Err(crate::DnsError::invalid_packet("Label too long"));
+            }
+            
+            if offset + 1 + len >= data.len() {
+                return Err(crate::DnsError::invalid_packet("Truncated name"));
+            }
+            
+            if !name.is_empty() {
+                name.push('.');
+            }
+            
+            let label = std::str::from_utf8(&data[offset + 1..offset + 1 + len])
+                .map_err(|_| crate::DnsError::invalid_packet("Invalid UTF-8 in name"))?;
+            name.push_str(label);
+            
+            offset += 1 + len;
+        }
+        
+        if offset + 4 > data.len() {
+            return Err(crate::DnsError::invalid_packet("Truncated question"));
+        }
+        
+        let qtype = u16::from_be_bytes([data[offset], data[offset + 1]]);
+        let qclass = u16::from_be_bytes([data[offset + 2], data[offset + 3]]);
+        
+        let record_type = RecordType::from_u16(qtype)
+            .ok_or_else(|| crate::DnsError::UnsupportedRecordType { record_type: qtype })?;
+        let class = DnsClass::from_u16(qclass)
+            .ok_or_else(|| crate::DnsError::invalid_packet("Invalid DNS class"))?;
+        
+        Ok(Self {
+            id,
+            name: name.clone(),
+            name_hash: crate::hash::hash_domain_name(&name),
+            record_type,
+            class,
+            recursion_desired: (flags & 0x0100) != 0,
+            dnssec_ok: false, // Would need to parse EDNS0 for this
+            client_addr: "0.0.0.0".parse().unwrap(), // Will be set by caller
+            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        })
+    }
 }
 
 /// DNS response structure
@@ -212,6 +283,135 @@ pub struct DnsResponse {
     pub answers: Vec<DnsRecord>,
     pub authority: Vec<DnsRecord>,
     pub additional: Vec<DnsRecord>,
+}
+
+impl DnsResponse {
+    /// Convert DNS response to bytes
+    pub fn to_bytes(&self) -> crate::DnsResult<Vec<u8>> {
+        let mut buffer = Vec::new();
+        
+        // DNS header (12 bytes)
+        buffer.extend_from_slice(&self.id.to_be_bytes());
+        
+        // Flags
+        let mut flags = 0u16;
+        flags |= 0x8000; // QR bit (response)
+        if self.authoritative { flags |= 0x0400; }
+        if self.truncated { flags |= 0x0200; }
+        if self.recursion_available { flags |= 0x0080; }
+        if self.authenticated_data { flags |= 0x0020; }
+        if self.checking_disabled { flags |= 0x0010; }
+        flags |= self.response_code.to_u16();
+        
+        buffer.extend_from_slice(&flags.to_be_bytes());
+        buffer.extend_from_slice(&(self.questions.len() as u16).to_be_bytes());
+        buffer.extend_from_slice(&(self.answers.len() as u16).to_be_bytes());
+        buffer.extend_from_slice(&(self.authority.len() as u16).to_be_bytes());
+        buffer.extend_from_slice(&(self.additional.len() as u16).to_be_bytes());
+        
+        // Questions section
+        for question in &self.questions {
+            Self::encode_name(&mut buffer, &question.name)?;
+            buffer.extend_from_slice(&question.record_type.to_u16().to_be_bytes());
+            buffer.extend_from_slice(&question.class.to_u16().to_be_bytes());
+        }
+        
+        // Answer section
+        for record in &self.answers {
+            Self::encode_record(&mut buffer, record)?;
+        }
+        
+        // Authority section
+        for record in &self.authority {
+            Self::encode_record(&mut buffer, record)?;
+        }
+        
+        // Additional section
+        for record in &self.additional {
+            Self::encode_record(&mut buffer, record)?;
+        }
+        
+        Ok(buffer)
+    }
+    
+    /// Encode a domain name
+    fn encode_name(buffer: &mut Vec<u8>, name: &str) -> crate::DnsResult<()> {
+        if name.is_empty() || name == "." {
+            buffer.push(0);
+            return Ok(());
+        }
+        
+        for label in name.split('.') {
+            if label.len() > 63 {
+                return Err(crate::DnsError::invalid_packet("Label too long"));
+            }
+            buffer.push(label.len() as u8);
+            buffer.extend_from_slice(label.as_bytes());
+        }
+        buffer.push(0); // Root label
+        Ok(())
+    }
+    
+    /// Encode a DNS record
+    fn encode_record(buffer: &mut Vec<u8>, record: &DnsRecord) -> crate::DnsResult<()> {
+        // Name
+        Self::encode_name(buffer, &record.name)?;
+        
+        // Type, Class, TTL
+        buffer.extend_from_slice(&record.record_type.to_u16().to_be_bytes());
+        buffer.extend_from_slice(&record.class.to_u16().to_be_bytes());
+        buffer.extend_from_slice(&record.ttl.to_be_bytes());
+        
+        // Data
+        let data = Self::encode_record_data(&record.data)?;
+        buffer.extend_from_slice(&(data.len() as u16).to_be_bytes());
+        buffer.extend_from_slice(&data);
+        
+        Ok(())
+    }
+    
+    /// Encode record data
+    fn encode_record_data(data: &RecordData) -> crate::DnsResult<Vec<u8>> {
+        let mut buffer = Vec::new();
+        
+        match data {
+            RecordData::A(addr) => {
+                buffer.extend_from_slice(&addr.octets());
+            }
+            RecordData::AAAA(addr) => {
+                buffer.extend_from_slice(&addr.octets());
+            }
+            RecordData::CNAME(name) => {
+                Self::encode_name(&mut buffer, name)?;
+            }
+            RecordData::MX { priority, exchange } => {
+                buffer.extend_from_slice(&priority.to_be_bytes());
+                Self::encode_name(&mut buffer, exchange)?;
+            }
+            RecordData::NS(name) => {
+                Self::encode_name(&mut buffer, name)?;
+            }
+            RecordData::PTR(name) => {
+                Self::encode_name(&mut buffer, name)?;
+            }
+            RecordData::TXT(strings) => {
+                for s in strings {
+                    let bytes = s.as_bytes();
+                    if bytes.len() > 255 {
+                        return Err(crate::DnsError::invalid_packet("TXT string too long"));
+                    }
+                    buffer.push(bytes.len() as u8);
+                    buffer.extend_from_slice(bytes);
+                }
+            }
+            _ => {
+                // For other record types, return empty data for now
+                // In a full implementation, these would be properly encoded
+            }
+        }
+        
+        Ok(buffer)
+    }
 }
 
 /// DNS question structure

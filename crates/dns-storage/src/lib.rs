@@ -4,6 +4,7 @@
 //! optimized for zero-copy operations and high performance.
 
 pub mod cache;
+pub mod multi_level_cache;
 pub mod disk;
 pub mod index;
 pub mod memory;
@@ -13,6 +14,11 @@ pub mod version_log;
 pub mod backup;
 
 pub use cache::{ZeroCopyCache, AtomicCacheEntry, AtomicCacheStats, AtomicZeroCopyCache};
+pub use multi_level_cache::{
+    MultiLevelAtomicCache, MultiLevelCacheConfig, MultiLevelCacheStats, 
+    L1HotCache, L2MemoryCache, L3SsdCache, CacheWarmer, 
+    WarmingStatistics, MaintenanceResult
+};
 pub use disk::{MmapDiskStorage, MappedZoneFile, MmapWriter, MmapStorageStatistics};
 pub use index::{HashDomainIndex, ZoneIndexEntry, WildcardEntry, IndexStatistics};
 pub use memory::MemoryStorage;
